@@ -1,0 +1,5 @@
+model_reuse
+saved_models
+*.pyc
+*.ipynb
+*.DS_Store
