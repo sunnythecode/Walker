@@ -4,6 +4,9 @@ Details for code listed below.
 
 Video: https://youtu.be/OYJrw4SSvJ0
 
+![Project Screenshot](assets/background.png)
+
+
 ---
 
 ## **Key Components of the Code**
