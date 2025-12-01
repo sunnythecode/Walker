@@ -1,82 +1,74 @@
-import gymnasium as gym
 import torch
 import numpy as np
-from models import *
-import matplotlib.pyplot as plt
+import csv
+from pathlib import Path
+import gymnasium as gym
+import os
+#from sac_visual import *
+from sac import *
+from utils import *
 
-def load_model(model_path):
-    """Load the trained model weights"""
-    checkpoint = torch.load(model_path)
-    
-    # Initialize models
-    actor = Actor(4, 24).to(torch.float32)
-    actor.load_state_dict(checkpoint['actor_state_dict'])
-    actor.eval()  # Set to evaluation mode
-    
-    return actor
+# -------- CONFIG --------
+ENV_NAME = 'BipedalWalkerHardcore-v3'        # replace with your environment
+MODEL_PATH = "models/base_8_blind_300_HC/model_890000.pt"  # replace with your model pt
+    # path to your saved SAC agent
+VIDEO_DIR = "./videos6"     
+CSV_PATH = "./eval_rewards6.csv"
+NUM_EPISODES = 10
+ACTION_DIM = 4
+STATE_DIM = 24
 
-def evaluate_model(model_path, num_episodes=10, render=True):
-    """Evaluate the trained model"""
-    # Load model
-    actor = load_model(model_path)
-    
-    # Create environment
-    env = gym.make('BipedalWalker-v3', render_mode='human' if render else None)
-    
-    rewards = []
-    steps_list = []
-    
+os.makedirs(VIDEO_DIR, exist_ok=True)
 
+# -------- LOAD ENV --------
+env = gym.make(ENV_NAME, render_mode = "rgb_array")
+env = gym.wrappers.RecordVideo(env, video_folder=VIDEO_DIR, episode_trigger=lambda x: True)
+
+# -------- LOAD MODEL --------
+# Replace this with your agent loading logic
+agent = SAC(3, (64, 64), ACTION_DIM, STATE_DIM)
+agent.load(MODEL_PATH)
+agent.eval()  # evaluation mode
+
+# -------- EVALUATE --------
+rewards = []
+
+for ep in range(NUM_EPISODES):
     state, _ = env.reset()
-    state = torch.tensor(state, dtype=torch.float32)
+    state = torch.tensor(state, dtype=torch.float32, device=agent.device).unsqueeze(0)
+    # image_obs = preprocess_img(env.render(), device=agent.device)
     done = False
     total_reward = 0
-    steps = 0
-    mean_hist = []
-    std_hist = []
-    
-    while not (done):
-        # Get action from policy
+    step = 0
+
+    while not done:
         with torch.no_grad():
-            action, log_prob, mean_stds = actor.sample(state)
-            mean_hist.append(mean_stds[0][0])
-            std_hist.append(mean_stds[1][0])
-            if steps % 12 == 0:
-                print(f"STD: {mean_stds[1]} MEAN: {mean_stds[0]} STEP {steps}")
+            # Replace sample_action with your agent's method
+            action = agent.sample_action(state, deterministic=True)
 
-            
-            action = mean_stds[0].cpu().numpy().squeeze()
-        
-        # Take step in environment
-        state, reward, done, _, _ = env.step(action)
-        state = torch.tensor(state, dtype=torch.float32)
-        
+        next_state, reward, terminated, truncated, _ = env.step(action.cpu().numpy().flatten())
+        next_state = torch.tensor(next_state, dtype=torch.float32, device=agent.device).unsqueeze(0)
+        # image_obs = preprocess_img(env.render(), device=agent.device)
+
+        done = terminated or truncated
         total_reward += reward
-        steps += 1
-        
-        if render:
-            env.render()
+        state = next_state
+        step += 1
 
-    plt.plot(mean_hist)
-    plt.plot(std_hist)
-    plt.show()
-    
     rewards.append(total_reward)
-    steps_list.append(steps)
-    print(f"Reward = {total_reward:.2f}, Steps = {steps}")
-    
-    env.close()
-    
-    # Print summary statistics
-    print("\nEvaluation Results:")
-    print(f"Average Reward: {np.mean(rewards):.2f} ± {np.std(rewards):.2f}")
-    print(f"Average Steps: {np.mean(steps_list):.2f} ± {np.std(steps_list):.2f}")
-    print(f"Best Episode Reward: {max(rewards):.2f}")
-    print(f"Worst Episode Reward: {min(rewards):.2f}")
-    
-    return rewards, steps_list
+    print(f"Episode {ep+1}/{NUM_EPISODES} reward: {total_reward}")
 
-if __name__ == "__main__":
-    # Use the best model for evaluation
-    model_path = 'saved_models/sac_best_model.pt'
-    rewards, steps = evaluate_model(model_path, num_episodes=5, render=True)
+# -------- LOG RESULTS --------
+avg_reward = np.mean(rewards)
+csv_file = Path(CSV_PATH)
+file_exists = csv_file.exists()
+with csv_file.open("a", newline="") as f:
+    writer = csv.writer(f)
+    if not file_exists:
+        writer.writerow(["Episode", "AverageReward"])
+    for i, r in enumerate(rewards):
+        writer.writerow([i+1, r])
+
+env.close()
+print(f"Saved {NUM_EPISODES} episodes in {VIDEO_DIR}")
+print(f"Average reward: {avg_reward}")

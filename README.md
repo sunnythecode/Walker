@@ -11,6 +11,16 @@ Video: https://youtu.be/OYJrw4SSvJ0
 
 ## **Key Components of the Code**
 
+Enter a unique `MODEL_LABEL` in train.py
+Setup train.py parameters based on your preference(episode scaling, batch size, update frequency, total episodes for training ...)
+Run train.py
+
+Throughout training you can past ur `MODEL_LABEL` in visualize.py to track loss and rewards plotted over time. You will see CSVs with these numbers in `models/<MODEL_LABEL>/loss.csv`
+
+You can run test.py with a specific pt from the `models/<MODEL_LABEL>/` folder to evaluate on 10 episodes and record videos of the policy. 
+
+
+
 ### **Constants and Initialization**
 
 #### **Hyperparameters**:
